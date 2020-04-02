@@ -11,6 +11,7 @@ Add the following code to your `.pre-commit-config.yaml`
     -   id: normalise
         args: ['--tab-width=4']
     -   id: header-guard
+        args: ['--only-missing', '--add-vim-filetype']
     -   id: normalise-opencl
     -   id: normalise-cpp
         args: ['--src=src', '--top=sys/types.h']

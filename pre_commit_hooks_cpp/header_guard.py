@@ -63,8 +63,10 @@ def vim_file_type(filename):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Check and add C/C++ header guard')
+    parser.add_argument('--project-name', nargs=1, help="The project name. When specified the 'project+filename' header guard will be used instead of 'folder+filename' header guard")
+    parser.add_argument('--only-missing', action='store_true', help="If provided, header guard is only added if missing")
+    parser.add_argument('--add-vim-filetype', action='store_true', help="If provided, add vim filetype when a new header guard is added")
     parser.add_argument('filenames', nargs='*', help='Filenames to check')
-    parser.add_argument('--project_name', nargs=1, help="")
     args = parser.parse_args(argv)
     guard = re.compile(r'#ifndef\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\n\s*#define\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\n')
     ret = 0
@@ -72,18 +74,27 @@ def main(argv=None):
     for filename in args.filenames:
         contents = None
         with open(filename) as f:
-            contents = f.read();
+            # We also strip whitespace and newlines in the beginning and in the
+            # end
+            contents = f.read().strip();
+            # but we add a newline at the end
+            contents = contents + "\n"
 
         if args.project_name:
             name = guard_name_project_plus_name(filename, args.project_name[0])
         else:
             name = guard_name_parent_plus_name(filename)
-
         m = guard.match(contents)
         if m:
+            # Add header guard when there is already one, but it is different from what it should be
             name1 = m.group(1)
             name2 = m.group(2)
-            if name1 == name2 and name1 != name:
+            # If only_missing argument was provided we do not replace the header guard
+            if name1 != name2:
+                print(f"Inconsistent header guard in {filename}: '{name1}' and '{name2}'")
+                return 1
+
+            if name1 != name and not args.only_missing:
                 # update header guard
                 with open(filename, 'w') as f:
                     f.write(contents[:m.start(1)])
@@ -94,14 +105,14 @@ def main(argv=None):
                 print('{}: rename header guard'.format(filename))
                 ret = 1
         else:
-            # add header guard
+            # add header guard when there is None
             with open(filename, 'w') as f:
                 f.write(f'#ifndef {name}\n#define {name}\n\n')
                 f.write(contents)
                 f.write(f'\n#endif  // {name}')
                 filetype = vim_file_type(filename)
-                if filename is not None:
-                    f.write(' // vim' + ':filetype=')
+                if filetype is not None and args.add_vim_filetype:
+                    f.write('\n// vim' + ':filetype=')
                     f.write(filetype)
                 f.write('\n')
             print('{}: add header guard'.format(filename))
